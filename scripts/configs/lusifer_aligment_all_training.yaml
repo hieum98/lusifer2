@@ -8,7 +8,7 @@ neg_per_sample: 8
 num_workers: 8
 number_training_samples: 10_000
 pos_per_sample: 1
-use_retrieval_data_only: false
+use_retrieval_data_only: true
 
 # Model args
 attn_implementation: flash_attention_2
