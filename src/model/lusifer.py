@@ -343,7 +343,8 @@ class Lusifer(nn.Module):
                 labels=labels,
                 inputs_embeds=embeddings,
                 return_dict=True,
-                is_causal=is_causal
+                is_causal=is_causal,
+                output_hidden_states=True
             )
         if labels is not None:
             ce_loss = outputs.loss

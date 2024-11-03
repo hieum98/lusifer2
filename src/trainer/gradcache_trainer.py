@@ -272,7 +272,6 @@ class GradCacheTrainer:
         if None in all_ce_loss:
             ce_loss = None
         else:
-            # average the ce_loss
             ce_loss = torch.stack(all_ce_loss).mean()
         loss = torch.stack(all_loss).mean()
         return con_loss, ce_loss, loss
@@ -330,7 +329,6 @@ class GradCacheTrainer:
                 metrics = {
                     'con_loss': con_loss.item(),
                     'ce_loss': ce_loss.item() if ce_loss is not None else None,
-                    'total_loss': loss.item(),
                     'iter_time': t1 - iter_t0,
                     'epoch': epoch_num,
                     # 'iter_num': batch_idx,
@@ -341,7 +339,6 @@ class GradCacheTrainer:
                     f"Epoch {epoch_num} | Iter {batch_idx} |"
                     f" ConLoss: {metrics['con_loss']:.4f} |"
                     f" CELoss: {metrics['ce_loss']:.4f} |"
-                    f" TotalLoss: {metrics['total_loss']:.4} |"
                     f" LR: {metrics['lr']} |"
                     f" Iter time: {metrics['iter_time']:.4f}s |"
                 )

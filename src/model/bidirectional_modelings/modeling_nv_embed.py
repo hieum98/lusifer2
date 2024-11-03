@@ -24,8 +24,8 @@ from torch.nn.attention import SDPBackend
 from datasets import Dataset
 from torch.utils.data import DataLoader
 
-from src.models.bidirectional_modelings.config_nvembed import NVEmbedConfig, LatentAttentionConfig, BidirectionalMistralConfig
-from src.models.bidirectional_modelings.modeling_bidirectional_mistral import BidirectionalMistral
+from src.model.bidirectional_modelings.config_nvembed import NVEmbedConfig, LatentAttentionConfig, BidirectionalMistralConfig
+from src.model.bidirectional_modelings.modeling_bidirectional_mistral import BidirectionalMistral
 
 logger = logging.get_logger(__name__)
 

@@ -25,7 +25,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 
-from src.models.bidirectional_modelings.attn_mask_utils import _prepare_4d_causal_attention_mask_with_cache_position
+from src.model.bidirectional_modelings.attn_mask_utils import _prepare_4d_causal_attention_mask_with_cache_position
 
 _CONFIG_FOR_DOC = "MistralConfig"
 

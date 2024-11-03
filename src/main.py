@@ -328,6 +328,7 @@ if __name__ == "__main__":
     os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = 'true'
     os.environ['TOKENIZERS_PARALLELISM'] = 'false'
     os.environ['HF_DATASETS_TRUST_REMOTE_CODE']='1'
+    # os.environ["WANDB_MODE"] = "offline"
     
     import argparse
     parser = argparse.ArgumentParser(

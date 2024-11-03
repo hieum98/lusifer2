@@ -37,7 +37,7 @@ universal_learner_name_or_path: FacebookAI/xlm-roberta-large
 activation_checkpointing: true
 checkpoint_dir: output/nvembed_alignment
 checkpoint_file: null
-checkpoint_interval: 2000
+checkpoint_interval: 1000
 devices: 4
 eval_batch_size: 64
 gc_chunk_size: 16
@@ -58,7 +58,7 @@ nodes: 1
 only_load_model: false
 precision: bf16-mixed
 quantization: false
-seed: 777
+seed: 999
 sharding_strategy: shard_grad_op
 strategy: fsdp
 temperature: 0.05
