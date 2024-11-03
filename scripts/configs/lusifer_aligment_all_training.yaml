@@ -37,9 +37,9 @@ universal_learner_name_or_path: FacebookAI/xlm-roberta-large
 activation_checkpointing: true
 checkpoint_dir: output/nvembed_alignment
 checkpoint_file: null
-checkpoint_interval: 1000
+checkpoint_interval: 500
 devices: 4
-eval_batch_size: 64
+eval_batch_size: 128
 gc_chunk_size: 16
 global_batch_size: 256
 grad_norm_clip: 1.0
