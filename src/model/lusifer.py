@@ -330,7 +330,7 @@ class Lusifer(nn.Module):
             target_attention_mask = torch.cat([attention_mask, llm_attention_mask], dim=1)
             input_labels = torch.zeros((universal_representation.size(0), universal_representation.size(1)), device=universal_representation.device, dtype=input_ids.dtype) + -100
             labels = torch.cat([input_labels, lm_labels], dim=1)
-            is_causal = True # Must be True for causal language modeling to make sure the model only uses the past tokens
+            is_causal = False 
         else:
             embeddings = universal_representation
             target_attention_mask = attention_mask
