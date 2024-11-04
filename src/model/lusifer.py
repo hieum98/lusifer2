@@ -297,6 +297,56 @@ class Lusifer(nn.Module):
         
         return transformer 
 
+    def pooling(
+            self,
+            hidden_state: torch.Tensor,
+            attention_mask: Optional[torch.Tensor] = None,
+            prompt_length: Optional[torch.Tensor] = None,
+    ):  
+        if attention_mask is None:
+            attention_mask = torch.ones(hidden_state.size(0), hidden_state.size(1), device=hidden_state.device)
+        # Pool the hidden states
+        # Mask the prompt tokens
+        if prompt_length is not None:
+            attention_mask = attention_mask.clone()
+            for i, l in enumerate(prompt_length):
+                attention_mask[i, :l] = 0
+                # Make sure not all zeros - If this happens it is a bug
+                assert attention_mask[i].sum() > 0, "You have all zeros in the attention mask!"
+
+        # In case the model is distributed across multiple devices; hidden_state may end up on diff device
+        hidden_state = hidden_state.to(attention_mask.device)
+        if self.pooling_method == 'cls':
+            embedding = hidden_state[:, 0]
+        elif self.pooling_method == 'lasttoken':
+            b, n, d = hidden_state.size()
+            # Get the last `1` in the attention mask of each item
+            # Often it is just `gather_indices = torch.argmin(attention_mask, 1, keepdim=False) - 1`
+            # except when 1) There's all 1's 2) There's 0's before the 1's
+            reversed_mask = torch.flip(attention_mask, dims=(1,))
+            argmax_reverse = torch.argmax(reversed_mask, dim=1, keepdim=False)
+            gather_indices = attention_mask.size(1) - argmax_reverse - 1
+            # If there are empty sequences, where the index would become -1 it will crash so set them to 0
+            gather_indices = torch.clamp(gather_indices, min=0)
+            # Turn indices from shape [b] -> [b, 1, d]
+            gather_indices = gather_indices.unsqueeze(-1).repeat(1, d)
+            gather_indices = gather_indices.unsqueeze(1)
+            assert gather_indices.shape == (b, 1, d)
+            # Gather along the seq len: [b, n, d] -> [b, d]
+            # Actually no need for the attention mask as we gather the last token where attn_mask=1 but
+            # as some indices (which shouldn't be attended to) may be 0 due to clamp, use mask to ignore them again
+            input_mask_expanded = attention_mask.unsqueeze(-1).expand((b, n, d)).float()
+            embedding = torch.gather(hidden_state * input_mask_expanded, 1, gather_indices).squeeze(dim=1)
+        elif self.pooling_method in ['mean', 'weightedmean']:
+            if self.pooling_method == 'weightedmean':
+                attention_mask *= attention_mask.cumsum(dim=1) # [0,1,1,1,0,0] -> [0,1,2,3,0,0]
+            s = torch.sum(hidden_state * attention_mask.unsqueeze(-1).float(), dim=1)
+            d = attention_mask.sum(dim=1, keepdim=True).float()
+            embedding = s / d
+        else: raise NotImplementedError(f"Unknown pooling method: {self.pooling_method}")
+        
+        return embedding.contiguous().to(hidden_state.dtype)
+
     def construct_input_attn_mask(self, attention_mask: torch.Tensor):
         if self.connection_type in ['ff', 'embedding_table']:	
             attention_mask = torch.cat([
