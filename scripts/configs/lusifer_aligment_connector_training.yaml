@@ -11,12 +11,13 @@ pos_per_sample: 1
 use_retrieval_data_only: true
 
 # Model args
+attn_mask_type: causal
 attn_implementation: flash_attention_2
 connection_type: ff
 dropout: 0.1
-encoder_backbone_type: nvidia/NV-Embed-v2
+encoder_backbone_type: mistral
 encoder_lora_name: null
-encoder_name_or_path: Hieuman/nvembed-v2-mistral
+encoder_name_or_path: intfloat/e5-mistral-7b-instruct
 is_freeze_universal_learner: true
 loar_r: 16
 lora_alpha: 32
@@ -27,7 +28,7 @@ universal_learner_name_or_path: FacebookAI/xlm-roberta-large
 
 # Training args
 activation_checkpointing: true
-checkpoint_dir: output/nvembed_alignment
+checkpoint_dir: output/e5m_alignment
 checkpoint_file: null
 checkpoint_interval: 500
 devices: 4
@@ -39,13 +40,13 @@ is_alignment: true
 is_distance: true
 learning_rate: 0.0002
 log_interval: 1
-logger_name: lusifer_nvembed
+logger_name: lusifer_e5-mistral
 logger_type: wandb
 loss_type: NTXentLoss
 max_epochs: 3
 max_steps: 50000
 min_learning_rate: 1.0e-07
-model_revision: lusifer_nvembed
+model_revision: lusifer_e5-mistral
 nodes: 1
 only_load_model: false
 precision: bf16-mixed

@@ -54,6 +54,7 @@ class Lusifer(nn.Module):
             dropout: float = 0.1,
             attn_implementation: str = 'flash_attention_2',
             model_dtype: torch.dtype = torch.bfloat16,
+            attn_mask_type: str = 'bidirectional',
     ) -> None:
         
         super().__init__()
@@ -76,10 +77,12 @@ class Lusifer(nn.Module):
             'dropout': dropout,
             'attn_implementation': attn_implementation,
             'model_dtype': model_dtype,
+            'attn_mask_type': attn_mask_type,
         }
         if attn_implementation == "flash_attention_2":
             model_dtype = torch.bfloat16
             self.model_dtype = model_dtype
+        self.is_causal = True if attn_mask_type == 'causal' else False
         self.pooling_method = pooling_method
         self.mteb_model_meta = mteb.ModelMeta(
             name='Lusifer',
@@ -330,12 +333,10 @@ class Lusifer(nn.Module):
             target_attention_mask = torch.cat([attention_mask, llm_attention_mask], dim=1)
             input_labels = torch.zeros((universal_representation.size(0), universal_representation.size(1)), device=universal_representation.device, dtype=input_ids.dtype) + -100
             labels = torch.cat([input_labels, lm_labels], dim=1)
-            is_causal = False 
         else:
             embeddings = universal_representation
             target_attention_mask = attention_mask
             labels = None
-            is_causal = False # Must be False for feature extraction to make sure the model uses all tokens
 
         outputs = self.encoder(
                 input_ids=None,
@@ -343,7 +344,7 @@ class Lusifer(nn.Module):
                 labels=labels,
                 inputs_embeds=embeddings,
                 return_dict=True,
-                is_causal=is_causal,
+                is_causal=self.is_causal,
                 output_hidden_states=True
             )
         if labels is not None:
@@ -470,6 +471,7 @@ class WrappedLusifer(nn.Module):
             dropout: float = 0.1,
             attn_implementation: str = 'flash_attention_2',
             model_dtype: torch.dtype = torch.bfloat16,
+            attn_mask_type: str = 'bidirectional',
             model_revision: str = 'dev',
             model_checkpoint: Optional[str] = None,
             num_gpus: int = 8,
@@ -502,6 +504,7 @@ class WrappedLusifer(nn.Module):
             dropout=dropout,
             attn_implementation=attn_implementation,
             model_dtype=model_dtype,
+            attn_mask_type=attn_mask_type,
         )
 
         if model_checkpoint is not None and os.path.exists(model_checkpoint):

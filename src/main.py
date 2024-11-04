@@ -67,6 +67,7 @@ def main(
             dropout=model_args.dropout,
             attn_implementation=model_args.attn_implementation,
             model_dtype=torch.bfloat16,
+            attn_mask_type=model_args.attn_mask_type,
         )
         if training_args.only_load_model and training_args.checkpoint_file is not None:
             fabric.print(f"Only load model from {training_args.checkpoint_file}")

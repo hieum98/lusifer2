@@ -100,6 +100,10 @@ class ModelArguments:
         default='flash_attention_2',
         metadata={"help": "The attention implementation."}
     )
+    attn_mask_type: str = field(
+        default='bidirectional',
+        metadata={"help": "The attention mask type. Can be 'bidirectional' or 'causal'."}
+    )
 
 
 @dataclass
