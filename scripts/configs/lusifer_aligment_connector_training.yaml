@@ -23,7 +23,7 @@ loar_r: 16
 lora_alpha: 32
 num_added_tokens: 1
 universal_learner_backbone_type: xlm-r
-universal_learner_lora_name: null
+universal_learner_lora_name: universal_learner_lora
 universal_learner_name_or_path: intfloat/multilingual-e5-large
 
 # Training args
