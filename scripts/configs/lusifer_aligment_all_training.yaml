@@ -32,7 +32,7 @@ lora_alpha: 32
 num_added_tokens: 1
 universal_learner_backbone_type: xlm-r
 universal_learner_lora_name: universal_learner_lora
-universal_learner_name_or_path: FacebookAI/xlm-roberta-large
+universal_learner_name_or_path: intfloat/multilingual-e5-large
 
 # Training args
 activation_checkpointing: true

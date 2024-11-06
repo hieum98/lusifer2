@@ -6,7 +6,7 @@ mask_probability: 0.75
 max_seq_length: 512
 neg_per_sample: 8
 num_workers: 8
-number_training_samples: 10_000
+number_training_samples: 2_000
 pos_per_sample: 1
 use_retrieval_data_only: true
 
@@ -32,7 +32,7 @@ lora_alpha: 32
 num_added_tokens: 1
 universal_learner_backbone_type: xlm-r
 universal_learner_lora_name: universal_learner_lora
-universal_learner_name_or_path: FacebookAI/xlm-roberta-large
+universal_learner_name_or_path: intfloat/multilingual-e5-large
 
 # Training args
 activation_checkpointing: true
