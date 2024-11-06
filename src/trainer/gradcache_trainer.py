@@ -38,6 +38,8 @@ class GradCacheTrainer:
     def __init__(
             self,
             fabric: L.Fabric,
+            use_ce: bool = True,
+            use_con: bool = True,
             loss_type: str = 'NTXentLoss',
             temperature: float = 0.05,
             is_distance: bool = True,
@@ -47,7 +49,9 @@ class GradCacheTrainer:
         
         self.fabric = fabric
         self.chunk_size = chunk_size
-
+        assert use_ce or use_con, 'At least one of CE or Con loss should be enabled'
+        self.use_ce = use_ce
+        self.use_con = use_con
         self.loss_fn = ContrastiveLoss(
             loss_type=loss_type,
             temperature=temperature,
@@ -205,10 +209,16 @@ class GradCacheTrainer:
                 llm_attention_mask=llm_attention_mask,
                 lm_labels=llm_labels,
             )
-            ce_loss = outputs['ce_loss']
-            cache = einops.rearrange(cache, 'b n d -> (b n) d', b=B) # (batch_size * (1 + num_pos + num_neg), embed_dim)
-            projections = outputs['projected_reps']
-            surrougate = torch.dot(projections.flatten(), cache.flatten())
+            if self.use_ce:
+                ce_loss = outputs['ce_loss']
+            else:
+                ce_loss = None
+            if self.use_con:
+                cache = einops.rearrange(cache, 'b n d -> (b n) d', b=B) # (batch_size * (1 + num_pos + num_neg), embed_dim)
+                projections = outputs['projected_reps']
+                surrougate = torch.dot(projections.flatten(), cache.flatten())
+            else:
+                surrougate = 0.0
             loss = ce_loss + surrougate if ce_loss is not None else surrougate
             # GC mini-batch backward pass
             self.fabric.backward(loss)
@@ -227,31 +237,36 @@ class GradCacheTrainer:
         splitted_inputs = split_input(batch, self.chunk_size)
 
         # Forward pass for each chunk
-        rnd_states = []
-        all_query_projections = []
-        all_pos_projections = []
-        all_neg_projections = []
-        for chunk in splitted_inputs:
-            chunk['min_pos_per_sample'] = P
-            query_projections, pos_projections, neg_projections, rnd_state = self.forward_no_grad(model, chunk)
-            all_query_projections.append(query_projections)
-            all_pos_projections.append(pos_projections)
-            all_neg_projections.append(neg_projections)
-            rnd_states.append(rnd_state)
-        all_query_projections = torch.cat(all_query_projections, dim=0)
-        all_pos_projections = torch.cat(all_pos_projections, dim=0)
-        all_neg_projections = torch.cat(all_neg_projections, dim=0)
+        if self.use_con:
+            rnd_states = []
+            all_query_projections = []
+            all_pos_projections = []
+            all_neg_projections = []
+            for chunk in splitted_inputs:
+                chunk['min_pos_per_sample'] = P
+                query_projections, pos_projections, neg_projections, rnd_state = self.forward_no_grad(model, chunk)
+                all_query_projections.append(query_projections)
+                all_pos_projections.append(pos_projections)
+                all_neg_projections.append(neg_projections)
+                rnd_states.append(rnd_state)
+            all_query_projections = torch.cat(all_query_projections, dim=0)
+            all_pos_projections = torch.cat(all_pos_projections, dim=0)
+            all_neg_projections = torch.cat(all_neg_projections, dim=0)
 
-        # Build cache for representations from all chunks
-        labels = batch['query_labels']
-        cache, con_loss = self.build_cache(
-            query_projections=all_query_projections,
-            pos_projections=all_pos_projections,
-            neg_projections=all_neg_projections,
-            query_labels=labels,
-            cross_batch_loss=enable_cross_batch_negative_sampling,
-        )
-        cache = cache.split(self.chunk_size, dim=0)
+            # Build cache for representations from all chunks
+            labels = batch['query_labels']
+            cache, con_loss = self.build_cache(
+                query_projections=all_query_projections,
+                pos_projections=all_pos_projections,
+                neg_projections=all_neg_projections,
+                query_labels=labels,
+                cross_batch_loss=enable_cross_batch_negative_sampling,
+            )
+            cache = cache.split(self.chunk_size, dim=0)
+        else:
+            con_loss = None
+            rnd_states = [nullcontext() for _ in range(len(splitted_inputs))]
+            cache = None
 
         # Forward and backward pass for each chunk
         accumulated_flags = [True for _ in range(len(splitted_inputs)-1)] + [False]

@@ -28,7 +28,7 @@ from src.model.bidirectional_modelings.modeling_bidirectional_qwen2 import Bidir
 from src.model.bidirectional_modelings.modeling_bidirectional_gemma2 import BidirectionalGemma2ForCausalLM
 from src.model.bidirectional_modelings.modeling_nv_embed import LatentAttentionModel
 from src.model.bidirectional_modelings.config_nvembed import LatentAttentionConfig
-from src.model.connection_modules import FFWithAddedTokens, EmbeddingTable
+from src.model.connection_modules import  LatentAttention
 from src.model.utils import find_all_linear_names
 from src.special_tokens import SPECIAL_TOKENS
 
@@ -143,30 +143,12 @@ class Lusifer(nn.Module):
         self.encoder_backbone_type = encoder_backbone_type
 
         # Connector
-        self.num_added_tokens = num_added_tokens
-        if self.num_added_tokens == 0 and connection_type == 'attn':
-            print("Warning: You are using attention connection but num_added_tokens is 0. Setting the connection type to ff.")
-            connection_type = 'ff'
-        self.connection_type = connection_type
-        if connection_type == 'ff':
-            self.connection_module = FFWithAddedTokens(
-                in_dim=self.universal_learner_dim,
-                out_dim=self.encoder_dim,
-                num_added_tokens=self.num_added_tokens,
-                model_dtype=model_dtype,
-            )
-        elif connection_type == 'embedding_table':
-            self.connection_module = EmbeddingTable(
-                in_dim=self.universal_learner_dim,
-                out_dim=self.encoder_dim,
-                vocab_size=self.encoder.config.vocab_size,
-                padding_idx=self.encoder.config.pad_token_id,
-                llm_embedding=self.encoder.get_input_embeddings(),
-                model_dtype=model_dtype,
-            )
-            self.num_added_tokens = 0
-        else:
-            raise NotImplementedError(f"Connection type {connection_type} not implemented")
+        self.connection_module = LatentAttention(
+            hidden_dim=self.universal_learner_dim,
+            num_latents=128,
+            latent_dim=self.encoder_dim,
+            model_dtype=model_dtype,
+        )
         
         # Projector
         self.output_projection = nn.Sequential(
@@ -343,18 +325,7 @@ class Lusifer(nn.Module):
             d = attention_mask.sum(dim=1, keepdim=True).float()
             embedding = s / d
         else: raise NotImplementedError(f"Unknown pooling method: {self.pooling_method}")
-        
         return embedding.contiguous().to(hidden_state.dtype)
-
-    def construct_input_attn_mask(self, attention_mask: torch.Tensor):
-        if self.connection_type in ['ff', 'embedding_table']:	
-            attention_mask = torch.cat([
-                attention_mask, 
-                torch.ones((attention_mask.size(0), self.num_added_tokens), device=attention_mask.device, dtype=attention_mask.dtype)
-                ], dim=1)
-        else:
-            raise NotImplementedError(f"Connection type {self.connection_type} not implemented")
-        return attention_mask
     
     def forward(
             self,
@@ -371,7 +342,7 @@ class Lusifer(nn.Module):
             return_dict=True
         ).hidden_states[-1] # (batch_size, in_len, hidden_size)
         universal_representation = self.connection_module(universal_representation, attention_mask=attention_mask)
-        attention_mask = self.construct_input_attn_mask(attention_mask)
+        attention_mask = torch.ones((universal_representation.size(0), universal_representation.size(1)), device=universal_representation.device, dtype=torch.long)
 
         if llm_input_ids is not None:
             assert lm_labels is not None, "lm_labels must be provided when llm_input_ids is provided"
@@ -400,11 +371,10 @@ class Lusifer(nn.Module):
             ce_loss = outputs.loss
         else:
             ce_loss = None
-        input_len = universal_representation.size(1)
-        input_reps = outputs.hidden_states[-1][:, :input_len]
 
+        input_reps = outputs.hidden_states[-1] # (bs, seq_len, hidden_size)
         if self.encoder_backbone_type == 'nvidia/NV-Embed-v2':
-            pool_mask = attention_mask.clone()
+            pool_mask = target_attention_mask.clone()
             with torch.autocast(device_type=input_reps.device.type, dtype=self.model_dtype):
                 sentence_representation = self.laten_attention_model(input_reps, pool_mask)
             projected_representation = sentence_representation
@@ -412,7 +382,7 @@ class Lusifer(nn.Module):
             if self.connection_type in ['ff', 'embedding_table']:
                 sentence_representation = self.pooling(
                     hidden_state=input_reps,
-                    attention_mask=attention_mask,
+                    attention_mask=target_attention_mask,
                     prompt_length=None, # Always None with luifer because the prompt embedding might containt some information dueto soft-prompting in the universal learner
                 ) # (batch_size, hidden_size)
             else:
@@ -420,6 +390,8 @@ class Lusifer(nn.Module):
             with torch.autocast(device_type=sentence_representation.device.type, dtype=self.model_dtype):
                 projected_representation = self.output_projection(sentence_representation) # (batch_size, hidden_size)
 
+        projected_representation = torch.nn.functional.normalize(projected_representation, p=2, dim=-1)
+        sentence_representation = torch.nn.functional.normalize(sentence_representation, p=2, dim=-1)
         return {
             'reps': sentence_representation,
             'projected_reps': projected_representation,
@@ -429,6 +401,7 @@ class Lusifer(nn.Module):
     def tokenize_example(
             self, 
             example: Tuple[str, str],
+            tokenizer: PreTrainedTokenizer,
             is_query: bool = True,
             max_length: int = 512,
     ) -> BatchEncoding:
@@ -438,7 +411,7 @@ class Lusifer(nn.Module):
             emb_example = query_format.format(instruction=example[0], example=example[1])
         else:
             emb_example = candidate_format.format(instruction=example[0], example=example[1])
-        model_inputs = self.encoder_tokenizer(
+        model_inputs = tokenizer(
             text=emb_example,
             max_length=max_length,
             truncation=True,
@@ -465,11 +438,15 @@ class Lusifer(nn.Module):
         all_embeddings = []
         for start_index in tqdm(range(0, len(sentences), batch_size), desc="Batches", disable=len(sentences)<256):
             batch = sentences[start_index:start_index+batch_size]
-            inputs = [self.tokenize_example(example, is_query=is_query, max_length=max_length) for example in batch]
+            inputs = [self.tokenize_example(example, tokenizer=self.universal_learner_tokenizer, is_query=is_query, max_length=max_length) for example in batch]
             inputs = self.universal_learner_tokenizer.pad(inputs, return_tensors='pt', pad_to_multiple_of=8)
+            tasker_inputs = [self.tokenize_example(example, tokenizer=self.encoder_tokenizer, is_query=is_query, max_length=max_length) for example in batch]
+            tasker_inputs = self.encoder_tokenizer.pad(tasker_inputs, return_tensors='pt', pad_to_multiple_of=8)
             inputs = {
                 'input_ids': inputs['input_ids'].to(self.device),
                 'attention_mask': inputs['attention_mask'].to(self.device),
+                'llm_input_ids': tasker_inputs['input_ids'].to(self.device),
+                'llm_attention_mask': tasker_inputs['attention_mask'].to(self.device),
             }
             with torch.no_grad():
                 reps = self(**inputs)['reps']
@@ -561,7 +538,8 @@ class WrappedLusifer(nn.Module):
             state_dict = torch.load(model_checkpoint, map_location='cpu', weights_only=False)
             self.model.load_state_dict(state_dict['model'], strict=False)
 
-        self.tokenizer = self.model.encoder_tokenizer
+        self.universal_learner_tokenizer = self.model.universal_learner_tokenizer
+        self.encoder_tokenizer = self.model.encoder_tokenizer
         self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         self.num_gpus = min(torch.cuda.device_count(), num_gpus)
         print(f"Using {self.num_gpus} GPUs")
@@ -573,6 +551,7 @@ class WrappedLusifer(nn.Module):
     def tokenize_example(
             self, 
             example: Tuple[str, str],
+            tokenizer: PreTrainedTokenizer,
             is_query: bool = True,
             max_length: int = 512,
     ) -> BatchEncoding:
@@ -582,7 +561,7 @@ class WrappedLusifer(nn.Module):
             emb_example = query_format.format(instruction=example[0], example=example[1])
         else:
             emb_example = candidate_format.format(instruction=example[0], example=example[1])
-        model_inputs = self.tokenizer(
+        model_inputs = tokenizer(
             text=emb_example,
             max_length=max_length,
             truncation=True,
@@ -610,11 +589,15 @@ class WrappedLusifer(nn.Module):
         all_embeddings = []
         for start_index in tqdm(range(0, len(sentences), batch_size), desc="Batches", disable=len(sentences)<256):
             batch = sentences[start_index:start_index+batch_size]
-            inputs = [self.tokenize_example(example, is_query=is_query, max_length=max_length) for example in batch]
-            inputs = self.tokenizer.pad(inputs, return_tensors='pt', pad_to_multiple_of=8)
+            inputs = [self.tokenize_example(example, tokenizer=self.universal_learner_tokenizer, is_query=is_query, max_length=max_length) for example in batch]
+            inputs = self.universal_learner_tokenizer.pad(inputs, return_tensors='pt', pad_to_multiple_of=8)
+            tasker_inputs = [self.tokenize_example(example, tokenizer=self.encoder_tokenizer, is_query=is_query, max_length=max_length) for example in batch]
+            tasker_inputs = self.encoder_tokenizer.pad(tasker_inputs, return_tensors='pt', pad_to_multiple_of=8)
             inputs = {
                 'input_ids': inputs['input_ids'].to(self.device),
                 'attention_mask': inputs['attention_mask'].to(self.device),
+                'llm_input_ids': tasker_inputs['input_ids'].to(self.device),
+                'llm_attention_mask': tasker_inputs['attention_mask'].to(self.device),
             }
             reps = self.model(**inputs)['reps']
             all_embeddings.append(reps.cpu().to(torch.float32).numpy())

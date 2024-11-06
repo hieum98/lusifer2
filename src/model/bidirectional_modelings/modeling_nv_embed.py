@@ -162,12 +162,12 @@ class LatentAttentionModel(PreTrainedModel):
         hiddens = cross_attn(hiddens, context = x, mask = None) + hiddens
         hiddens = cross_ff(hiddens) + hiddens
         if attention_mask !=None:
-            s = torch.sum(hiddens * attention_mask.unsqueeze(-1).float(), dim=1)
+            s = torch.sum(hiddens * attention_mask.unsqueeze(-1).float(), dim=1) 
             d = attention_mask.sum(dim=1, keepdim=True).float()
             hiddens = s / d
             if self.output_normalize:
                 hiddens = torch.nn.functional.normalize(hiddens, p=2, dim=-1)
-        return hiddens
+        return hiddens # 
     
     
 class NVEmbedModel(PreTrainedModel):

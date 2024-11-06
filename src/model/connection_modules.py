@@ -1,6 +1,7 @@
 from typing import Optional
 import torch
 import torch.nn as nn
+from torch.nn.attention import SDPBackend
 import einops
 from transformers.models.bert.modeling_bert import BertAttention
 from transformers.models.bert.configuration_bert import BertConfig
@@ -80,3 +81,96 @@ class EmbeddingTable(nn.Module):
             x = x.to(dtype=self.dtype) # (b, n, d)
         return x
 
+
+class PreNorm(torch.nn.Module):
+    def __init__(self, dim, fn, context_dim = None):
+        super().__init__()
+        self.fn = fn
+        self.norm = torch.nn.LayerNorm(dim)
+        self.norm_context = torch.nn.LayerNorm(context_dim) if exists(context_dim) else None
+
+    def forward(self, x, **kwargs):
+        x = self.norm(x)
+        if exists(self.norm_context):
+            context = kwargs['context']
+            normed_context = self.norm_context(context)
+            kwargs.update(context = normed_context)
+        return self.fn(x, **kwargs)
+
+class GEGLU(torch.nn.Module):
+    def forward(self, x):
+        x, gates = x.chunk(2, dim = -1)
+        return x * torch.nn.functional.gelu(gates)
+
+class FeedForward(torch.nn.Module):
+    def __init__(self, dim, mult = 4):
+        super().__init__()
+        self.net = torch.nn.Sequential(torch.nn.Linear(dim, dim * mult * 2),
+            GEGLU(),
+            torch.nn.Linear(dim * mult, dim))
+
+    def forward(self, x):
+        return self.net(x)
+
+
+def exists(val):
+    return val is not None
+
+
+def default(val, d):
+    return val if exists(val) else d
+
+
+class Attention(torch.nn.Module):
+    def __init__(self, query_dim, context_dim = None, heads = 8, dim_head = 64):
+        super().__init__()
+        inner_dim = dim_head * heads
+        context_dim = default(context_dim, query_dim)
+        self.scale = dim_head ** -0.5
+        self.heads = heads
+
+        self.to_q = torch.nn.Linear(query_dim, inner_dim, bias = False)
+        self.to_kv = torch.nn.Linear(context_dim, inner_dim * 2, bias = False)
+        self.to_out = torch.nn.Linear(inner_dim, query_dim, bias = False)
+
+    def forward(self, x, context = None, mask = None):
+        h = self.heads
+        q = self.to_q(x)
+        context = default(context, x)
+        k, v = self.to_kv(context).chunk(2, dim = -1)
+        q, k, v = map(lambda t: einops.rearrange(t, 'b n (h d) -> (b h) n d', h = h), (q, k, v))
+        with torch.nn.attention.sdpa_kernel([SDPBackend.FLASH_ATTENTION, SDPBackend.MATH, SDPBackend.EFFICIENT_ATTENTION]):
+            out = torch.nn.functional.scaled_dot_product_attention(q, k, v)
+        out = einops.rearrange(out, '(b h) n d -> b n (h d)', h = h)
+        return self.to_out(out)
+
+
+class LatentAttention(nn.Module):
+    def __init__(
+            self,
+            hidden_dim: int,
+            num_latents: int,
+            latent_dim: int,
+            cross_heads: int=8,
+            model_dtype=torch.bfloat16
+            ) -> None:
+        super().__init__()
+        self.cross_attn = PreNorm(
+            latent_dim,
+            Attention(latent_dim, hidden_dim, heads=cross_heads, dim_head=hidden_dim),
+            context_dim=hidden_dim
+        )
+        self.cross_ff = PreNorm(latent_dim, FeedForward(latent_dim))
+        self.latents = nn.Parameter(torch.randn(num_latents, latent_dim))
+        self.dtype = model_dtype
+
+    def forward(self, hiddens):
+        # Cast to correct device type
+        with torch.autocast(device_type=hiddens.device.type, dtype=torch.float32):
+            b, *_, device = *hiddens.shape, hiddens.device
+            x = einops.repeat(self.latents, 'n d -> b n d', b=b)
+            hiddens = self.cross_attn(x, context=hiddens, mask=None)
+            hiddens = self.cross_ff(hiddens) + hiddens # (b, n, d)
+        hiddens = hiddens.to(dtype=self.dtype)
+        return hiddens
+    
