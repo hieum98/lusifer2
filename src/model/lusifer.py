@@ -256,8 +256,7 @@ class Lusifer(nn.Module):
                     'torch_dtype': torch.bfloat16 if attn_implementation == "flash_attention_2" else model_dtype,
                     'output_loading_info': True,
                     }
-            elif 'xlm' in model_name_or_path:
-                kwargs.pop('attn_implementation')
+            kwargs.pop('attn_implementation')
         else:
             if backbone_type in ["mistral", "nvidia/NV-Embed-v2"]:
                 model_class = BidirectionalMistralForCausalLM
