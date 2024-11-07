@@ -55,8 +55,6 @@ def main(
             encoder_backbone_type=model_args.encoder_backbone_type,
             is_freeze_universal_learner=model_args.is_freeze_universal_learner,
             is_freeze_encoder=True,
-            connection_type=model_args.connection_type,
-            num_added_tokens=model_args.num_added_tokens,
             pooling_method='mean',
             encoder_lora_name=model_args.encoder_lora_name,
             universal_learner_lora_name=model_args.universal_learner_lora_name,
@@ -358,9 +356,6 @@ if __name__ == "__main__":
         "--mask_probability", type=float, default=None, help="Mask probability"
     )
     parser.add_argument(
-        "--num_added_tokens", type=int, default=None, help="Number of added tokens"
-    )
-    parser.add_argument(
         "--learning_rate", type=float, default=None, help="Learning rate"
     )
     parser.add_argument(
@@ -399,7 +394,6 @@ if __name__ == "__main__":
         training_args.checkpoint_file = args.checkpoint_file if args.checkpoint_file is not None else training_args.checkpoint_file
         training_args.only_load_model = args.only_load_model
     data_args.mask_probability = args.mask_probability if args.mask_probability is not None else data_args.mask_probability
-    model_args.num_added_tokens = args.num_added_tokens if args.num_added_tokens is not None else model_args.num_added_tokens
 
     config_file_path = Path(training_args.checkpoint_dir) / "config.yaml"
     config_file_path.parent.mkdir(parents=True, exist_ok=True)

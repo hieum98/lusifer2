@@ -42,8 +42,6 @@ class Lusifer(nn.Module):
             encoder_backbone_type: str = 'mistral',
             is_freeze_universal_learner: bool = True,
             is_freeze_encoder: bool = False,
-            connection_type: str = 'ff',
-            num_added_tokens: int = 0,
             pooling_method: str='mean',
             encoder_lora_name: str = 'encoder_lora',
             universal_learner_lora_name: str = 'universal_learner_lora',
@@ -65,8 +63,6 @@ class Lusifer(nn.Module):
             'encoder_backbone_type': encoder_backbone_type,
             'is_freeze_universal_learner': is_freeze_universal_learner,
             'is_freeze_encoder': is_freeze_encoder,
-            'connection_type': connection_type,
-            'num_added_tokens': num_added_tokens,
             'pooling_method': pooling_method,
             'encoder_lora_name': encoder_lora_name,
             'universal_learner_lora_name': universal_learner_lora_name,
@@ -331,8 +327,8 @@ class Lusifer(nn.Module):
             self,
             input_ids: torch.Tensor, # (batch_size, seq_len)
             attention_mask: torch.Tensor, # (batch_size, seq_len)
-            llm_input_ids: Optional[torch.Tensor] = None, # (batch_size, seq_len)
-            llm_attention_mask: Optional[torch.Tensor] = None, # (batch_size, seq_len)
+            llm_input_ids: Optional[torch.Tensor], # (batch_size, seq_len)
+            llm_attention_mask: Optional[torch.Tensor], # (batch_size, seq_len)
             lm_labels: Optional[torch.Tensor] = None, # (batch_size, seq_len)
             ):
         universal_representation = self.universal_learner(
@@ -341,21 +337,17 @@ class Lusifer(nn.Module):
             output_hidden_states=True,
             return_dict=True
         ).hidden_states[-1] # (batch_size, in_len, hidden_size)
-        universal_representation = self.connection_module(universal_representation, attention_mask=attention_mask)
+        universal_representation = self.connection_module(universal_representation)
         attention_mask = torch.ones((universal_representation.size(0), universal_representation.size(1)), device=universal_representation.device, dtype=torch.long)
 
-        if llm_input_ids is not None:
-            assert lm_labels is not None, "lm_labels must be provided when llm_input_ids is provided"
+        target_representation = self.encoder.model.get_input_embeddings()(llm_input_ids) # (batch_size, out_len, hidden_size)
+        embeddings = torch.cat([universal_representation, target_representation], dim=1) # (batch_size, in_len + out_len, hidden_size)
+        target_attention_mask = torch.cat([attention_mask, llm_attention_mask], dim=1)
+        if lm_labels is not None:
             assert lm_labels.size(0) == input_ids.size(0), "The batch size of lm_labels and input_ids must be the same"
-
-            target_representation = self.encoder.model.get_input_embeddings()(llm_input_ids) # (batch_size, out_len, hidden_size)
-            embeddings = torch.cat([universal_representation, target_representation], dim=1) # (batch_size, in_len + out_len, hidden_size)
-            target_attention_mask = torch.cat([attention_mask, llm_attention_mask], dim=1)
             input_labels = torch.zeros((universal_representation.size(0), universal_representation.size(1)), device=universal_representation.device, dtype=input_ids.dtype) + -100
             labels = torch.cat([input_labels, lm_labels], dim=1)
         else:
-            embeddings = universal_representation
-            target_attention_mask = attention_mask
             labels = None
 
         outputs = self.encoder(
@@ -379,14 +371,11 @@ class Lusifer(nn.Module):
                 sentence_representation = self.laten_attention_model(input_reps, pool_mask)
             projected_representation = sentence_representation
         else:
-            if self.connection_type in ['ff', 'embedding_table']:
-                sentence_representation = self.pooling(
-                    hidden_state=input_reps,
-                    attention_mask=target_attention_mask,
-                    prompt_length=None, # Always None with luifer because the prompt embedding might containt some information dueto soft-prompting in the universal learner
-                ) # (batch_size, hidden_size)
-            else:
-                raise NotImplementedError(f"Connection type {self.connection_type} not implemented")
+            sentence_representation = self.pooling(
+                hidden_state=input_reps,
+                attention_mask=target_attention_mask,
+                prompt_length=None, # Must be None as we want to use all tokens (including prompt tokens)
+            ) # (batch_size, hidden_size)
             with torch.autocast(device_type=sentence_representation.device.type, dtype=self.model_dtype):
                 projected_representation = self.output_projection(sentence_representation) # (batch_size, hidden_size)
 
@@ -485,8 +474,6 @@ class WrappedLusifer(nn.Module):
             encoder_backbone_type: str = 'mistral',
             is_freeze_universal_learner: bool = True,
             is_freeze_encoder: bool = False,
-            connection_type: str = 'ff',
-            num_added_tokens: int = 0,
             pooling_method: str='mean',
             encoder_lora_name: str = 'encoder_lora',
             universal_learner_lora_name: str = 'universal_learner_lora',
@@ -518,8 +505,6 @@ class WrappedLusifer(nn.Module):
             encoder_backbone_type=encoder_backbone_type,
             is_freeze_universal_learner=is_freeze_universal_learner,
             is_freeze_encoder=is_freeze_encoder,
-            connection_type=connection_type,
-            num_added_tokens=num_added_tokens,
             pooling_method=pooling_method,
             encoder_lora_name=encoder_lora_name,
             universal_learner_lora_name=universal_learner_lora_name,

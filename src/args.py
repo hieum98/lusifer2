@@ -60,14 +60,6 @@ class ModelArguments:
         default=False,
         metadata={"help": "Whether to freeze the universal learner model or not."} 
     )
-    connection_type: str = field(
-        default='ff',
-        metadata={"help": "The connection type between the universal learner and encoder. Can be 'ff' or 'attn'."}
-    )
-    num_added_tokens: int = field(
-        default=0,
-        metadata={"help": "The number of added tokens."}
-    )
     encoder_lora_name: str = field(
         default=None,
         metadata={"help": "The name of the encoder LoRA layer."}

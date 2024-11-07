@@ -164,6 +164,7 @@ class LusiferCollator:
     def tokenize_example(
             self,
             example: str,
+            tokenizer: PreTrainedTokenizer,
             is_query: bool=False,
             is_alignment: bool=False,
             instruction: str="",
@@ -175,10 +176,6 @@ class LusiferCollator:
         else:
             example = self.formater.format(instruction=instruction, example=example)
         
-        if is_alignment:
-            tokenizer = self.output_tokenizer
-        else:
-            tokenizer = self.input_tokenizer
         model_inputs = tokenizer(
             example,
             padding="longest",
@@ -218,35 +215,51 @@ class LusiferCollator:
             neg = random.sample(neg, min_neg_per_sample)
             for example in neg:
                 # Reconstruct the negative example
-                n_in = self.tokenize_example(example, is_query=False, instruction=instruction)
-                n_out = self.tokenize_example(example, is_alignment=True, instruction=reconstruct_instruction)
+                n_in = self.tokenize_example(example, tokenizer=self.input_tokenizer, is_query=False, instruction=instruction)
+                if self.constrastive_training_only:
+                    n_out = self.tokenize_example(example, tokenizer=self.output_tokenizer, is_query=False, instruction=instruction)
+                else:
+                    n_out = self.tokenize_example(example, tokenizer=self.output_tokenizer, is_alignment=True, instruction=reconstruct_instruction)
                 batch_neg_in.append(n_in)
                 batch_neg_out.append(n_out)
+            
             if is_passage2query:
                 # Reconstruct the query
-                q_in = self.tokenize_example(q, is_query=True, instruction=instruction)
-                q_out = self.tokenize_example(q, is_alignment=True, instruction=reconstruct_instruction)
+                q_in = self.tokenize_example(q, is_query=True, instruction=instruction, tokenizer=self.input_tokenizer)
+                if self.constrastive_training_only:
+                    q_out = self.tokenize_example(q, is_query=True, instruction=instruction, tokenizer=self.output_tokenizer)
+                else:
+                    q_out = self.tokenize_example(q, is_alignment=True, instruction=reconstruct_instruction, tokenizer=self.output_tokenizer)
                 batch_query_in.append(q_in)
                 batch_query_out.append(q_out)
                 pos = random.sample(pos, min_pos_per_sample)
                 for example in pos:
                     # Align the positive example to the query
-                    p_in = self.tokenize_example(example, is_query=False, instruction=instruction)
-                    p_out = self.tokenize_example(q, is_alignment=True, instruction=alignment_instruction)
+                    p_in = self.tokenize_example(example, is_query=False, instruction=instruction, tokenizer=self.input_tokenizer)
+                    if self.constrastive_training_only:
+                        p_out = self.tokenize_example(example, is_query=False, instruction=instruction, tokenizer=self.output_tokenizer)
+                    else:
+                        p_out = self.tokenize_example(q, is_alignment=True, instruction=alignment_instruction, tokenizer=self.output_tokenizer)
                     batch_pos_in.append(p_in)
                     batch_pos_out.append(p_out)
             else:
                 # Align the query to the positive example
-                q_in = self.tokenize_example(q, is_query=True, instruction=instruction)
-                random_pos = random.choice(pos)
-                q_out = self.tokenize_example(random_pos, is_alignment=True, instruction=alignment_instruction)
+                q_in = self.tokenize_example(q, is_query=True, instruction=instruction, tokenizer=self.input_tokenizer)
+                if self.constrastive_training_only:
+                    q_out = self.tokenize_example(q, is_query=True, instruction=instruction, tokenizer=self.output_tokenizer)
+                else:
+                    random_pos = random.choice(pos)
+                    q_out = self.tokenize_example(random_pos, is_alignment=True, instruction=alignment_instruction, tokenizer=self.output_tokenizer)
                 batch_query_in.append(q_in)
                 batch_query_out.append(q_out)
                 pos = random.sample(pos, min_pos_per_sample)
                 for example in pos:
                     # Reconstruct the positive example
-                    p_in = self.tokenize_example(example, is_query=False, instruction=instruction)
-                    p_out = self.tokenize_example(example, is_alignment=True, instruction=reconstruct_instruction)
+                    p_in = self.tokenize_example(example, is_query=False, instruction=instruction, tokenizer=self.input_tokenizer)
+                    if self.constrastive_training_only:
+                        p_out = self.tokenize_example(example, is_query=False, instruction=instruction, tokenizer=self.output_tokenizer)
+                    else:
+                        p_out = self.tokenize_example(example, is_alignment=True, instruction=reconstruct_instruction, tokenizer=self.output_tokenizer)
                     batch_pos_in.append(p_in)
                     batch_pos_out.append(p_out)
         

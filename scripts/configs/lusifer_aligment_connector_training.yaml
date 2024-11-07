@@ -13,7 +13,6 @@ use_retrieval_data_only: true
 # Model args
 attn_mask_type: causal
 attn_implementation: flash_attention_2
-connection_type: ff
 dropout: 0.1
 encoder_backbone_type: mistral
 encoder_lora_name: null
@@ -21,7 +20,6 @@ encoder_name_or_path: intfloat/e5-mistral-7b-instruct
 is_freeze_universal_learner: true
 loar_r: 16
 lora_alpha: 32
-num_added_tokens: 1
 universal_learner_backbone_type: xlm-r
 universal_learner_lora_name: universal_learner_lora
 universal_learner_name_or_path: intfloat/multilingual-e5-large
