@@ -77,7 +77,8 @@ class Lusifer(nn.Module):
         }
         if attn_implementation == "flash_attention_2":
             model_dtype = torch.bfloat16
-            self.model_dtype = model_dtype
+        
+        self.model_dtype = model_dtype
         self.is_causal = True if attn_mask_type == 'causal' else False
         self.pooling_method = pooling_method
         self.mteb_model_meta = mteb.ModelMeta(
