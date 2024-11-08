@@ -206,15 +206,19 @@ class GradCacheTrainer:
             )
             if self.use_ce:
                 ce_loss = outputs['ce_loss']
+                loss = ce_loss
             else:
                 ce_loss = None
             if self.use_con:
                 cache = einops.rearrange(cache, 'b n d -> (b n) d', b=B) # (batch_size * (1 + num_pos + num_neg), embed_dim)
                 projections = outputs['projected_reps']
                 surrougate = torch.dot(projections.flatten(), cache.flatten())
+                loss = surrougate
             else:
-                surrougate = 0.0
-            loss = ce_loss + surrougate if ce_loss is not None else surrougate
+                surrougate = None
+            
+            if self.use_con and self.use_ce:
+                loss = ce_loss + surrougate
             # GC mini-batch backward pass
             self.fabric.backward(loss)
         return ce_loss, loss
