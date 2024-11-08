@@ -180,6 +180,7 @@ class GradCacheTrainer:
             model_inputs: Dict[str, torch.Tensor],
             state: RandContext, 
             cache: torch.Tensor, # (batch_size, 1 + num_pos + num_neg, embed_dim)
+            num_chunks: int,
             ):
         with state:
             P = model_inputs['min_pos_per_sample']
@@ -206,7 +207,7 @@ class GradCacheTrainer:
             )
             if self.use_ce:
                 ce_loss = outputs['ce_loss']
-                loss = ce_loss
+                loss = ce_loss / num_chunks # num_chunks acts as num_accumulated_steps
             else:
                 ce_loss = None
             if self.use_con:
@@ -234,6 +235,7 @@ class GradCacheTrainer:
         P = batch.pop('min_pos_per_sample')
         enable_cross_batch_negative_sampling = batch.pop('enable_cross_batch_negative_sampling', True)
         splitted_inputs = split_input(batch, self.chunk_size)
+        num_chunks = len(splitted_inputs)
 
         # Forward pass for each chunk
         if self.use_con:
@@ -265,7 +267,7 @@ class GradCacheTrainer:
         else:
             con_loss = None
             rnd_states = [nullcontext() for _ in range(len(splitted_inputs))]
-            cache = None
+            cache = [None for _ in range(len(splitted_inputs))]
 
         # Forward and backward pass for each chunk
         accumulated_flags = [True for _ in range(len(splitted_inputs)-1)] + [False]
@@ -279,6 +281,7 @@ class GradCacheTrainer:
                     model_inputs=chunk,
                     state=state,
                     cache=c,
+                    num_chunks=num_chunks,
                 )
             all_ce_loss.append(ce_loss)
             all_loss.append(loss)
@@ -341,7 +344,7 @@ class GradCacheTrainer:
                 t1 = time.perf_counter()
 
                 metrics = {
-                    'con_loss': con_loss.item(),
+                    'con_loss': con_loss.item() if con_loss is not None else None,
                     'ce_loss': ce_loss.item() if ce_loss is not None else None,
                     'iter_time': t1 - iter_t0,
                     'epoch': epoch_num,
@@ -351,10 +354,10 @@ class GradCacheTrainer:
                 self.fabric.log_dict(metrics, step=current_step)
                 self.fabric.print(
                     f"Epoch {epoch_num} | Iter {batch_idx} |"
-                    f" ConLoss: {metrics['con_loss']:.4f} |"
-                    f" CELoss: {metrics['ce_loss']:.4f} |"
+                    f" ConLoss: {metrics['con_loss']} |"
+                    f" CELoss: {metrics['ce_loss']} |"
                     f" LR: {metrics['lr']} |"
-                    f" Iter time: {metrics['iter_time']:.4f}s |"
+                    f" Iter time: {metrics['iter_time']}s |"
                 )
             
             # Save checkpoint and evaluate each checkpoint interval steps or at the end of the epoch or at the end of training

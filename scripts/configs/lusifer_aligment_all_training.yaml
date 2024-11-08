@@ -1,7 +1,6 @@
 # Data args
 langs:
 - en
-- zh
 mask_probability: 0.75
 max_seq_length: 512
 neg_per_sample: 8
