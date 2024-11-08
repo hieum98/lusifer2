@@ -13,7 +13,7 @@ use_retrieval_data_only: true
 attn_mask_type: bidirectional
 attn_implementation: flash_attention_2
 dropout: 0.1
-encoder_backbone_type: mistral
+encoder_backbone_type: nvidia/NV-Embed-v2
 encoder_lora_name: encoder_lora
 encoder_lora_target_modules:
 - q_proj
@@ -23,7 +23,7 @@ encoder_lora_target_modules:
 - down_proj
 - up_proj
 - o_proj
-encoder_name_or_path: intfloat/e5-mistral-7b-instruct
+encoder_name_or_path: Hieuman/nvembed-v2-mistral
 is_freeze_universal_learner: true
 loar_r: 16
 lora_alpha: 32
@@ -33,25 +33,25 @@ universal_learner_name_or_path: intfloat/multilingual-e5-large
 
 # Training args
 activation_checkpointing: true
-checkpoint_dir: output/e5m_alignment
+checkpoint_dir: output/nvembed-v2_alignment
 checkpoint_file: null
 checkpoint_interval: 500
 devices: 4
 eval_batch_size: 128
 gc_chunk_size: 16
-global_batch_size: 256
+global_batch_size: 32
 grad_norm_clip: 1.0
 is_alignment: true
 is_distance: true
 learning_rate: 0.0002
 log_interval: 1
-logger_name: lusifer_e5-mistral
+logger_name: lusifer_nvembed-v2
 logger_type: wandb
 loss_type: NTXentLoss
 max_epochs: 3
 max_steps: 50000
 min_learning_rate: 1.0e-07
-model_revision: lusifer_e5-mistral
+model_revision: lusifer_nvembed-v2
 nodes: 1
 only_load_model: false
 precision: bf16-mixed

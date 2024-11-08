@@ -357,7 +357,7 @@ class Lusifer(nn.Module):
                 labels=labels,
                 inputs_embeds=embeddings,
                 return_dict=True,
-                is_causal=self.is_causal,
+                is_causal=False,
                 output_hidden_states=True
             )
         if labels is not None:
