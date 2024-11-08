@@ -279,28 +279,23 @@ class LusiferCollator:
         # n_attn_mask = batch['attention_mask'][len_q+len_p:]
         # n_attn_mask = einops.rearrange(n_attn_mask, '(b n) l -> b n l', b=batch_size, n=min_neg_per_sample)
 
-        if self.constrastive_training_only:
-            target_ids = None
-            target_attention_mask = None
-            target_labels = None
-        else:
-            target_batch = batch_query_out + batch_pos_out + batch_neg_out
-            target_batch = self.output_tokenizer.pad(target_batch, return_tensors='pt') # (bs*(1 + #p + #n), target_seq_len)
-            target_batch['labels'] = target_batch['input_ids'].clone()
-            padding_indices = target_batch['attention_mask'] == 0
-            target_batch['labels'][padding_indices] = -100
-            if self.mask_probability > 0.0:
-                # # Random attention masking
-                # masked_indices_for_attention = torch.rand(target_batch['attention_mask'].shape) < self.mask_probability
-                # target_batch['attention_mask'][masked_indices_for_attention] = 0
-                # Random token masking
-                masked_indices_for_input = torch.rand(target_batch['input_ids'].shape) < self.mask_probability
-                masked_indices_for_input[padding_indices] = False
-                target_batch['input_ids'][masked_indices_for_input] = self.output_tokenizer.mask_token_id
-            
-            target_ids = einops.rearrange(target_batch['input_ids'], '(b n) l -> b n l', b=batch_size) # (batch_size, 1 + #p + #n, target_seq_len)
-            target_attention_mask = einops.rearrange(target_batch['attention_mask'], '(b n) l -> b n l', b=batch_size) # (batch_size, 1 + #p + #n, target_seq_len)
-            target_labels = einops.rearrange(target_batch['labels'], '(b n) l -> b n l', b=batch_size) # (batch_size, 1 + #p + #n, target_seq_len)
+        target_batch = batch_query_out + batch_pos_out + batch_neg_out
+        target_batch = self.output_tokenizer.pad(target_batch, return_tensors='pt') # (bs*(1 + #p + #n), target_seq_len)
+        target_batch['labels'] = target_batch['input_ids'].clone()
+        padding_indices = target_batch['attention_mask'] == 0
+        target_batch['labels'][padding_indices] = -100
+        if self.mask_probability > 0.0:
+            # # Random attention masking
+            # masked_indices_for_attention = torch.rand(target_batch['attention_mask'].shape) < self.mask_probability
+            # target_batch['attention_mask'][masked_indices_for_attention] = 0
+            # Random token masking
+            masked_indices_for_input = torch.rand(target_batch['input_ids'].shape) < self.mask_probability
+            masked_indices_for_input[padding_indices] = False
+            target_batch['input_ids'][masked_indices_for_input] = self.output_tokenizer.mask_token_id
+        
+        target_ids = einops.rearrange(target_batch['input_ids'], '(b n) l -> b n l', b=batch_size) # (batch_size, 1 + #p + #n, target_seq_len)
+        target_attention_mask = einops.rearrange(target_batch['attention_mask'], '(b n) l -> b n l', b=batch_size) # (batch_size, 1 + #p + #n, target_seq_len)
+        target_labels = einops.rearrange(target_batch['labels'], '(b n) l -> b n l', b=batch_size) # (batch_size, 1 + #p + #n, target_seq_len)
         
             # target_q_ids = target_batch['input_ids'][:len_q] # (batch_size, q_len)
             # target_q_attn_mask = target_batch['attention_mask'][:len_q]

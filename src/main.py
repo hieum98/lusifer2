@@ -189,6 +189,8 @@ def main(
     # Setup trainer
     trainer = GradCacheTrainer(
         fabric=fabric,
+        use_ce=training_args.is_alignment,
+        use_con=not training_args.is_alignment,
         loss_type=training_args.loss_type,
         temperature=training_args.temperature,
         is_distance=training_args.is_distance,

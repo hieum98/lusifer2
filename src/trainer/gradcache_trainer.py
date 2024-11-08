@@ -192,14 +192,9 @@ class GradCacheTrainer:
 
             input_ids = einops.rearrange(in_ids, 'b n s -> (b n) s')
             attention_mask = einops.rearrange(in_attention_mask, 'b n s -> (b n) s')
-            if target_ids is not None:
-                llm_input_ids = einops.rearrange(target_ids, 'b n s -> (b n) s')
-                llm_attention_mask = einops.rearrange(target_attention_mask, 'b n s -> (b n) s')
-                llm_labels = einops.rearrange(target_labels, 'b n s -> (b n) s')
-            else:
-                llm_input_ids = None
-                llm_attention_mask = None
-                llm_labels = None
+            llm_input_ids = einops.rearrange(target_ids, 'b n s -> (b n) s')
+            llm_attention_mask = einops.rearrange(target_attention_mask, 'b n s -> (b n) s')
+            llm_labels = einops.rearrange(target_labels, 'b n s -> (b n) s') if self.use_ce else None
             
             # GC mini-batch forward pass
             outputs = model(
