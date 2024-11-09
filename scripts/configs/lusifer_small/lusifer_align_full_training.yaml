@@ -39,7 +39,7 @@ checkpoint_interval: 500
 devices: 4
 eval_batch_size: 128
 gc_chunk_size: 16
-global_batch_size: 256
+global_batch_size: 16
 grad_norm_clip: 1.0
 is_alignment: true
 is_distance: true
