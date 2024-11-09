@@ -34,7 +34,8 @@ backbone_to_layer_type = {
     'llama': [LlamaDecoderLayer],
     't5': [MT5Block],
     'xlm-r': [XLMRobertaLayer],
-    'nvidia/NV-Embed-v2': [MistralDecoderLayer, LatentAttentionModel]
+    'nvidia/NV-Embed-v2': [MistralDecoderLayer, LatentAttentionModel],
+    'qwen2': [Qwen2DecoderLayer],
 }
 
 def main(

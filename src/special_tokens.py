@@ -20,5 +20,11 @@ SPECIAL_TOKENS = {
         'eos': '</s>',
         'pad': '</s>',
         'mask': '<unk>',
-    }
+    },
+    'qwen2': {
+        'bos': "<|im_start|>",
+        'eos': '<|im_end|>',
+        'pad': '<|endoftext|>',
+        'mask': "<|object_ref_start|>",
+    },
 }
