@@ -10,11 +10,12 @@ pos_per_sample: 1
 use_retrieval_data_only: true
 
 # Model args
-attn_mask_type: causal
+attn_mask_type: bidirectional
 attn_implementation: flash_attention_2
 dropout: 0.1
 encoder_backbone_type: nvidia/NV-Embed-v2
 encoder_lora_name: null
+encoder_lora_target_modules: null
 encoder_name_or_path: Hieuman/nvembed-v2-mistral
 is_freeze_universal_learner: true
 loar_r: 16
@@ -31,9 +32,9 @@ checkpoint_interval: 500
 devices: 4
 eval_batch_size: 128
 gc_chunk_size: 16
-global_batch_size: 32
+global_batch_size: 256
 grad_norm_clip: 1.0
-is_alignment: true
+is_alignment: false
 is_distance: true
 learning_rate: 0.0002
 log_interval: 1
