@@ -33,7 +33,7 @@ universal_learner_name_or_path: intfloat/multilingual-e5-large
 
 # Training args
 activation_checkpointing: true
-checkpoint_dir: output/qwen2_rep_learning
+checkpoint_dir: output/qwen2_alignment
 checkpoint_file: null
 checkpoint_interval: 500
 devices: 4
@@ -41,7 +41,7 @@ eval_batch_size: 128
 gc_chunk_size: 16
 global_batch_size: 256
 grad_norm_clip: 1.0
-is_alignment: false
+is_alignment: true
 is_distance: true
 learning_rate: 0.0002
 log_interval: 1
