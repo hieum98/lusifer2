@@ -398,7 +398,7 @@ if __name__ == "__main__":
         training_args.only_load_model = False
     else:
         training_args.checkpoint_file = args.checkpoint_file if args.checkpoint_file is not None else training_args.checkpoint_file
-        training_args.only_load_model = args.only_load_model
+        training_args.only_load_model = args.only_load_model if args.resume_training is False else False
     data_args.mask_probability = args.mask_probability if args.mask_probability is not None else data_args.mask_probability
 
     config_file_path = Path(training_args.checkpoint_dir) / "config.yaml"
