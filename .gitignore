@@ -2,3 +2,4 @@ note.ipynb
 *__pycache__*
 output
 wandb/
+checkpoints

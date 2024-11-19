@@ -5,13 +5,13 @@ mask_probability: 0.75
 max_seq_length: 512
 neg_per_sample: 8
 num_workers: 8
-number_training_samples: 20_000
+number_training_samples: 20000
 pos_per_sample: 1
 use_retrieval_data_only: true
 
 # Model args
-attn_mask_type: bidirectional
 attn_implementation: flash_attention_2
+attn_mask_type: bidirectional
 dropout: 0.1
 encoder_backbone_type: qwen2
 encoder_lora_name: null
@@ -22,21 +22,23 @@ loar_r: 16
 lora_alpha: 32
 universal_learner_backbone_type: xlm-r
 universal_learner_lora_name: universal_learner_lora
+universal_learner_lora_target_modules: all
 universal_learner_name_or_path: intfloat/multilingual-e5-large
 
 # Training args
 activation_checkpointing: true
-checkpoint_dir: output/qwen2_alignment
+checkpoint_dir: /sensei-fs/users/chienn/hieu/lusifer/lusifer-small_connector_training.v1
 checkpoint_file: null
 checkpoint_interval: 500
-devices: 4
+devices: 8
 eval_batch_size: 128
-gc_chunk_size: 16
+gc_chunk_size: 8
 global_batch_size: 16
 grad_norm_clip: 1.0
 is_alignment: true
+is_cosine_annealing: true
 is_distance: true
-learning_rate: 0.0002
+learning_rate: 2.0e-05
 log_interval: 1
 logger_name: lusifer_qwen2
 logger_type: wandb
