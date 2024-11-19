@@ -373,6 +373,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--only_load_model", action="store_true", help="Only load the model from the checkpoint"
     )
+    parser.add_argument(
+        "--resume_training", action="store_true", help="Resume training from the checkpoint"
+    )
 
     args = parser.parse_args()
     config_file = args.config_file
@@ -390,9 +393,9 @@ if __name__ == "__main__":
     training_args.min_learning_rate = args.min_learning_rate if args.min_learning_rate is not None else training_args.min_learning_rate
     training_args.checkpoint_dir = args.checkpoint_dir if args.checkpoint_dir is not None else training_args.checkpoint_dir
     lastest_checkpoint = os.path.join(training_args.checkpoint_dir, "lastest.ckpt")
-    if os.path.exists(lastest_checkpoint):
+    if os.path.exists(lastest_checkpoint) and args.resume_training:
         training_args.checkpoint_file = lastest_checkpoint
-        training_args.only_load_model = True
+        training_args.only_load_model = False
     else:
         training_args.checkpoint_file = args.checkpoint_file if args.checkpoint_file is not None else training_args.checkpoint_file
         training_args.only_load_model = args.only_load_model
